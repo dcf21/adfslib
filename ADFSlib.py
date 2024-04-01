@@ -45,32 +45,38 @@ between_epochs = ((365 * 70) + 17) * 24 * 360000
 class Utilities:
 
     # Little endian reading
-
-    def _read_signed_word(self, s):
+    @staticmethod
+    def _read_signed_word(s):
 
         return struct.unpack("<i", s)[0]
 
-    def _read_unsigned_word(self, s):
+    @staticmethod
+    def _read_unsigned_word(s):
 
         return struct.unpack("<I", s)[0]
 
-    def _read_signed_byte(self, s):
+    @staticmethod
+    def _read_signed_byte(s):
 
         return s if s < 128 else 256 - s
 
-    def _read_unsigned_byte(self, s):
+    @staticmethod
+    def _read_unsigned_byte(s):
 
         return int(s)
 
-    def _read_unsigned_half_word(self, s):
+    @staticmethod
+    def _read_unsigned_half_word(s):
 
         return struct.unpack("<H", s)[0]
 
-    def _read_signed_half_word(self, s):
+    @staticmethod
+    def _read_signed_half_word(s):
 
         return struct.unpack("<h", s)[0]
 
-    def _str2num(self, size, s):
+    @staticmethod
+    def _str2num(size, s):
 
         i = 0
         n = 0
@@ -80,7 +86,8 @@ class Utilities:
 
         return n
 
-    def _binary(self, size, n):
+    @staticmethod
+    def _binary(size, n):
 
         new = ""
         while (n != 0) & (size > 0):
@@ -98,7 +105,8 @@ class Utilities:
 
         return new
 
-    def _safe(self, s, with_space=0):
+    @staticmethod
+    def _safe(s, with_space=0):
         if isinstance(s, str):
             s = s.encode('iso-8859-1')
 
@@ -122,7 +130,8 @@ class Utilities:
 
         return filename_bytes.decode('iso-8859-1')
 
-    def _plural(self, msg, values, words):
+    @staticmethod
+    def _plural(msg, values, words):
 
         """Returns a message which takes into account the plural form of
         words in the original message, assuming that the appropriate
@@ -157,7 +166,8 @@ class Utilities:
 
         return msg % tuple(substitutions)
 
-    def _create_directory(self, path, name=None):
+    @staticmethod
+    def _create_directory(path, name=None):
 
         elements = []
 
@@ -207,7 +217,8 @@ class Utilities:
         # Success
         return built
 
-    def _convert_name(self, old_name, convert_dict):
+    @staticmethod
+    def _convert_name(client, old_name, convert_dict):
 
         # Use the conversion dictionary to convert any forbidden
         # characters to accepted local substitutes.
@@ -216,15 +227,12 @@ class Utilities:
         for c in old_name:
 
             if c in list(convert_dict.keys()):
-
                 name = name + convert_dict[c]
-
             else:
-
                 name = name + c
 
-        if self.verify and old_name != name:
-            self.verify_log.append((WARNING, "Changed <{}> to <{}>".format(old_name, name)))
+        if client.verify and old_name != name:
+            client.verify_log.append((WARNING, "Changed <{}> to <{}>".format(old_name, name)))
 
         return name
 
@@ -548,8 +556,8 @@ class ADFSnewMap(ADFSmap):
 
     def read_catalogue(self, base):
 
-        head = base
-        p = 0
+        head: int = int(base)
+        p: int = 0
 
         dir_seq = self.sectors[head + p]
         dir_start = self.sectors[head + p + 1:head + p + 5].decode(encoding='iso-8859-1', errors='replace')
@@ -856,7 +864,7 @@ class ADFSdisc(Utilities):
                      "adE": "ADFS E format",
                      "adEbig": "ADFS F format"}
 
-    def __init__(self, adf, verify=0):
+    def __init__(self, adf, filename: str = "", verify=0, assume_interleaved=1):
 
         # Log problems if the verify flag is set.
         self.verify = verify
@@ -887,9 +895,8 @@ class ADFSdisc(Utilities):
             self.ntracks = 160
             self.nsectors = 16  # per track
             self.sector_size = 256  # in bytes
-            # Most L format discs are interleaved, but at least one is
-            # sequenced.
-            interleave = 1
+            # Most L format discs are interleaved, but occasionally they are sequenced.
+            interleave = assume_interleaved
             self.disc_type = 'adl'
             self.dir_markers = ('Hugo',)
 
@@ -904,15 +911,14 @@ class ADFSdisc(Utilities):
             format = self._identify_format(adf)
 
             if format == 'D':
-
                 self.disc_type = 'adD'
-
             elif format == 'E':
-
                 self.disc_type = 'adE'
-
             else:
-                raise ADFS_exception('Please supply a .adf, .adl or .adD file.')
+                # Guess type D
+                self.disc_type = 'adD'
+                logging.warning("Could not determine type D/E for 800k disk")
+                # raise ADFS_exception('Please supply a .adf, .adl or .adD file.')
 
         elif length == 1638400:
 
@@ -1563,7 +1569,7 @@ class ADFSdisc(Utilities):
 
             old_name = obj.name
 
-            name = self._convert_name(old_name, convert_dict)
+            name = self._convert_name(client=self, old_name=old_name, convert_dict=convert_dict)
 
             if isinstance(obj, ADFSfile):
 
@@ -1632,7 +1638,7 @@ class ADFSdisc(Utilities):
 
             # Use the conversion dictionary to convert any forbidden
             # characters to accepted local substitutes.
-            name = self._convert_name(old_name, convert_dict)
+            name = self._convert_name(client=self, old_name=old_name, convert_dict=convert_dict)
 
             if isinstance(obj, ADFSfile):
 
@@ -1793,5 +1799,5 @@ if __name__ == "__main__":
     logger.debug(__doc__.strip())
 
     # Open input file
-    item = ADFSdisc(adf=open(args.input_filename, "rb"), verify=True)
+    item = ADFSdisc(adf=open(args.input_filename, "rb"), filename=args.input_filename, verify=True)
     print(item.print_catalogue_str())
